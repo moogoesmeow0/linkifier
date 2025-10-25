@@ -1,4 +1,6 @@
 #![allow(unused)]
+use std::env;
+
 use anyhow::Result;
 use askama::Template;
 use axum::extract::{Json as JsonExtract, Path};
@@ -101,27 +103,31 @@ async fn new_link(JsonExtract(payload): JsonExtract<CreateLink>) -> AxumResult<i
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
+
     let app = axum::Router::new()
         .route("/{request}", get(redirect))
         .route("/new", post(new_link))
         .route(
             "/styles.css",
-            get_service(ServeFile::new("static/styles.css")),
+            get_service(ServeFile::new(format!("{}/styles.css", static_dir))),
         )
         .route(
             "/script.js",
-            get_service(ServeFile::new("static/script.js")),
+            get_service(ServeFile::new(format!("{}/script.js", static_dir))),
         )
         .route(
             "/index.html",
-            get_service(ServeFile::new("static/homepage.html")),
+            get_service(ServeFile::new(format!("{}/homepage.html", static_dir))),
         )
-        .route("/", get_service(ServeFile::new("static/homepage.html")))
+        .route(
+            "/",
+            get_service(ServeFile::new(format!("{}/homepage.html", static_dir))),
+        )
         .route(
             "/favicon.ico",
-            get_service(ServeFile::new("static/favicon.ico")),
-        )
-        .route("/f", get_service(ServeDir::new("static/")));
+            get_service(ServeFile::new(format!("{}/favicon.ico", static_dir))),
+        );
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
