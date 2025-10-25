@@ -12,8 +12,10 @@ use axum::{
 };
 use diesel::prelude::*;
 use dotenvy::dotenv;
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger};
 use tower_http::services::{ServeDir, ServeFile};
 
 pub mod models;
@@ -48,6 +50,7 @@ async fn redirect(Path(request): Path<String>) -> AxumResult<impl IntoResponse> 
         .load::<models::Link>(connection)
         .unwrap_or(vec![]);
     if results.is_empty() {
+        warn!("Link not found: {}", request);
         return Ok((StatusCode::NOT_FOUND, "Link not found").into_response());
     }
     let result = &results[0];
@@ -55,6 +58,8 @@ async fn redirect(Path(request): Path<String>) -> AxumResult<impl IntoResponse> 
     let x = HtmlTemplate {
         link: result.redirect.clone(),
     };
+
+    info!("Redirecting {} to {}", request, result.redirect);
     AxumResult::Ok(Html(x.render().unwrap_or("rendering error".to_string())).into_response())
 }
 
@@ -88,12 +93,18 @@ async fn new_link(JsonExtract(payload): JsonExtract<CreateLink>) -> AxumResult<i
         .values(&new_link)
         .execute(connection)
     {
+        warn!("Database insertion error: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Database error: {}", e),
         )
             .into());
     }
+
+    info!(
+        "Created new link: {} -> {}",
+        new_link.link, new_link.redirect
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -104,6 +115,12 @@ async fn new_link(JsonExtract(payload): JsonExtract<CreateLink>) -> AxumResult<i
 #[tokio::main]
 async fn main() -> Result<()> {
     let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
+
+    WriteLogger::init(
+        LevelFilter::Info,
+        Config::default(),
+        std::fs::File::create("/opt/linkifier/logs/app.log")?,
+    )?;
 
     let app = axum::Router::new()
         .route("/{request}", get(redirect))
