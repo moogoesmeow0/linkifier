@@ -63,13 +63,19 @@ async fn redirect(Path(request): Path<String>) -> AxumResult<impl IntoResponse> 
     AxumResult::Ok(Html(x.render().unwrap_or("rendering error".to_string())).into_response())
 }
 
-async fn new_link(JsonExtract(payload): JsonExtract<CreateLink>) -> AxumResult<impl IntoResponse> {
+async fn new_link(
+    JsonExtract(mut payload): JsonExtract<CreateLink>,
+) -> AxumResult<impl IntoResponse> {
     use self::schema::links;
 
     let connection = &mut establish_connection();
 
     if payload.redirect.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "Redirect URL is required").into());
+    }
+
+    if !payload.redirect.starts_with("http://") && !payload.redirect.starts_with("https://") {
+        payload.redirect = format!("http://{}", payload.redirect);
     }
 
     let mut rand_string: String = {
@@ -114,7 +120,8 @@ async fn new_link(JsonExtract(payload): JsonExtract<CreateLink>) -> AxumResult<i
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
+    dotenv().ok();
+    let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "./static".to_string());
     println!("static dir: {}", static_dir);
 
     WriteLogger::init(
