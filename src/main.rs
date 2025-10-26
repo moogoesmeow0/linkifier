@@ -115,6 +115,7 @@ async fn new_link(JsonExtract(payload): JsonExtract<CreateLink>) -> AxumResult<i
 #[tokio::main]
 async fn main() -> Result<()> {
     let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
+    println!("static dir: {}", static_dir);
 
     WriteLogger::init(
         LevelFilter::Info,
